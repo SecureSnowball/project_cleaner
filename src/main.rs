@@ -25,7 +25,7 @@ fn scan_folder(path: &str) {
                 println!("Do you want to delete vendor folder?");
                 let mut answer = String::new();
                 io::stdin().read_line(&mut answer).unwrap();
-                if answer == "y" {
+                if answer.trim() == "y" {
                     let delete_path = format!("{}/vendor", path);
                     remove_dir_all(delete_path).unwrap();
                 }
@@ -36,7 +36,7 @@ fn scan_folder(path: &str) {
                 println!("Do you want to delete node_modules folder?");
                 let mut answer = String::new();
                 io::stdin().read_line(&mut answer).unwrap();
-                if answer == "y" {
+                if answer.trim() == "y" {
                     let delete_path = format!("{}/node_modules", path);
                     remove_dir_all(delete_path).unwrap();
                 }
@@ -44,10 +44,9 @@ fn scan_folder(path: &str) {
             if contents.contains(&String::from("Cargo.toml")) {
                 // It is a Rust project?
                 println!("Rust Project\n{}", path);
-                println!("Do you want to clean this rust project?");
                 let mut answer = String::new();
                 io::stdin().read_line(&mut answer).unwrap();
-                if answer == "y" {
+                if answer.trim() == "y" {
                     println!("Running cargo clean");
                     Command::new("cargo")
                         .current_dir(path)
