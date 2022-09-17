@@ -1,9 +1,10 @@
 use std::{
+    error::Error,
     fmt::Display,
     fs::{self, remove_dir_all},
     io,
     path::PathBuf,
-    process::Command,
+    process::{self, Command},
 };
 
 use clap::Parser;
@@ -20,11 +21,23 @@ struct Args {
     path: PathBuf,
 }
 
-#[derive(Debug)]
+enum UserInput {
+    All,
+    SelectedProjects(Vec<usize>),
+}
+
+#[derive(Debug, Clone)]
 enum ProjectType {
     JavaScript,
     Rust,
     PHP,
+    Unknown,
+}
+
+impl Default for ProjectType {
+    fn default() -> Self {
+        Self::Unknown
+    }
 }
 
 impl Display for ProjectType {
@@ -33,14 +46,17 @@ impl Display for ProjectType {
             ProjectType::JavaScript => write!(f, "JavaScript"),
             ProjectType::Rust => write!(f, "Rust"),
             ProjectType::PHP => write!(f, "PHP"),
+            ProjectType::Unknown => write!(f, "Unknown"),
         }
     }
 }
 
+#[derive(Default, Debug, Clone)]
 struct Project {
     path: String,
     has_git: bool,
     language: ProjectType,
+    cleaned: bool,
 }
 
 fn main() {
@@ -50,8 +66,10 @@ fn main() {
         &args.path.into_os_string().into_string().unwrap(),
         &mut projects,
     );
-    display_projects(&projects);
-    clean_projects(&projects);
+    loop {
+        display_projects(&projects);
+        clean_handler(&mut projects);
+    }
 }
 
 fn display_projects(projects: &Vec<Project>) {
@@ -66,19 +84,89 @@ fn display_projects(projects: &Vec<Project>) {
         TableCell::new_with_alignment("Sr", 1, Alignment::Right),
         TableCell::new_with_alignment("Language", 1, Alignment::Left),
         TableCell::new_with_alignment("Has Git", 1, Alignment::Left),
+        TableCell::new_with_alignment("Cleaned", 1, Alignment::Left),
         TableCell::new_with_alignment("Path", 1, Alignment::Left),
     ]));
-    for (index, project, ) in projects.iter().enumerate() {
+    for (index, project) in projects.iter().enumerate() {
         table.add_row(Row::new(vec![
             TableCell::new(index),
             TableCell::new(project.language.to_string()),
             TableCell::new(if project.has_git { "Yes" } else { "No" }),
+            TableCell::new(if project.cleaned { "Yes" } else { "No" }),
             TableCell::new(project.path.clone()),
         ]));
     }
     println!("{}", table.render());
 }
-fn clean_projects(projects: &Vec<Project>) {}
+
+fn clean_handler(projects: &mut Vec<Project>) {
+    let selected_projects = input_handler().unwrap();
+    match selected_projects {
+        UserInput::All => {
+            for project in projects {
+                clean_project(project);
+            }
+        }
+        UserInput::SelectedProjects(project_indexes) => {
+            for i in project_indexes {
+                let project: Option<&mut Project> = projects.get_mut(i);
+                match project {
+                    Some(project) => clean_project(project),
+                    None => {
+                        println!("Invalid index, {}", i);
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn clean_project(project: &mut Project) {
+    match project.language {
+        ProjectType::JavaScript => {
+            clean_js_project(&project.path);
+            project.cleaned = true;
+        }
+        ProjectType::Rust => {
+            clean_rust_project(&project.path);
+            project.cleaned = true;
+        }
+        ProjectType::PHP => {
+            clean_php_project(&project.path);
+            project.cleaned = true;
+        }
+        ProjectType::Unknown => {
+            eprintln!("Unable to detect project type in {}", &project.path)
+        }
+    }
+}
+
+fn input_handler() -> Result<UserInput, Box<dyn Error>> {
+    println!(
+        "Enter project number to clean.\n- 1,2 to clean both 1 and 2 project\n- a to clean all.\n- c to cancel"
+    );
+    let mut answer = String::new();
+    io::stdin().read_line(&mut answer).unwrap();
+    let answer = answer.trim();
+
+    if answer.to_lowercase() == String::from("c") {
+        quit();
+    }
+
+    if answer.to_lowercase() == String::from("a") {
+        Ok(UserInput::All)
+    } else {
+        let answer = format!("[{}]", answer);
+        let input: Result<Vec<usize>, serde_json::Error> = serde_json::from_str(&answer[..]);
+        match input {
+            Ok(ids) => return Ok(UserInput::SelectedProjects(ids)),
+            Err(_) => {
+                println!("Invalid input");
+                input_handler()
+            }
+        }
+    }
+}
 
 fn scan_folder(path: &String, projects: &mut Vec<Project>) {
     let folder_item_iterator = fs::read_dir(path).unwrap();
@@ -93,29 +181,23 @@ fn scan_folder(path: &String, projects: &mut Vec<Project>) {
             has_git = false;
             eprintln!("Project doesn't contain .gitignore: {}", path);
         }
+        let mut project = Project {
+            has_git,
+            path: path.clone(),
+            language: ProjectType::Unknown,
+            ..Default::default()
+        };
         if contents.contains(&String::from("vendor")) {
-            // handle_php_project(path);
-            projects.push(Project {
-                has_git,
-                path: path.clone(),
-                language: ProjectType::PHP,
-            })
+            project.language = ProjectType::PHP;
+            projects.push(project.clone());
         }
         if contents.contains(&String::from("node_modules")) {
-            projects.push(Project {
-                has_git,
-                path: path.clone(),
-                language: ProjectType::JavaScript,
-            })
-            // handle_js_project(path);
+            project.language = ProjectType::JavaScript;
+            projects.push(project.clone());
         }
         if contents.contains(&String::from("Cargo.toml")) {
-            // handle_rust_project(path);
-            projects.push(Project {
-                has_git,
-                path: path.clone(),
-                language: ProjectType::Rust,
-            })
+            project.language = ProjectType::Rust;
+            projects.push(project.clone());
         }
     } else {
         for item in fs::read_dir(path).unwrap() {
@@ -127,40 +209,25 @@ fn scan_folder(path: &String, projects: &mut Vec<Project>) {
     }
 }
 
-fn handle_php_project(path: &String) {
-    println!("PHP Project\n{}", path);
-    println!("Do you want to delete vendor folder?");
-    let mut answer = String::new();
-    io::stdin().read_line(&mut answer).unwrap();
-    if answer.trim() == "y" {
-        let delete_path = format!("{}/vendor", path);
-        remove_dir_all(delete_path).unwrap();
-    }
+fn clean_php_project(path: &String) {
+    let delete_path = format!("{}/vendor", path);
+    remove_dir_all(delete_path).unwrap();
 }
 
-fn handle_rust_project(path: &String) {
-    // It is a Rust project?
-    println!("Rust Project\n{}", path);
-    let mut answer = String::new();
-    io::stdin().read_line(&mut answer).unwrap();
-    if answer.trim() == "y" {
-        println!("Running cargo clean");
-        Command::new("cargo")
-            .current_dir(path)
-            .args(["clean"])
-            .spawn()
-            .unwrap();
-    }
+fn clean_rust_project(path: &String) {
+    Command::new("cargo")
+        .current_dir(path)
+        .args(["clean"])
+        .spawn()
+        .unwrap();
 }
 
-fn handle_js_project(path: &String) {
-    // It is a NodeJS project?
-    println!("NodeJS Project\n{}", path);
-    println!("Do you want to delete node_modules folder?");
-    let mut answer = String::new();
-    io::stdin().read_line(&mut answer).unwrap();
-    if answer.trim() == "y" {
-        let delete_path = format!("{}/node_modules", path);
-        remove_dir_all(delete_path).unwrap();
-    }
+fn clean_js_project(path: &String) {
+    let delete_path = format!("{}/node_modules", path);
+    remove_dir_all(delete_path).unwrap();
+}
+
+fn quit() {
+    println!("Bye 👋");
+    process::exit(0);
 }
