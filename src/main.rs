@@ -77,7 +77,7 @@ fn display_projects(projects: &Vec<Project>) {
     table.style = TableStyle::extended();
     table.add_row(Row::new(vec![TableCell::new_with_alignment(
         "Projects",
-        4,
+        5,
         Alignment::Center,
     )]));
     table.add_row(Row::new(vec![
@@ -89,7 +89,7 @@ fn display_projects(projects: &Vec<Project>) {
     ]));
     for (index, project) in projects.iter().enumerate() {
         table.add_row(Row::new(vec![
-            TableCell::new(index),
+            TableCell::new_with_alignment(index, 1, Alignment::Right),
             TableCell::new(project.language.to_string()),
             TableCell::new(if project.has_git { "Yes" } else { "No" }),
             TableCell::new(if project.cleaned { "Yes" } else { "No" }),
