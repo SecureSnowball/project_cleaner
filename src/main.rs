@@ -1,14 +1,24 @@
 use std::{
     fs::{self, remove_dir_all},
     io,
-    process::Command,
+    process::Command, path::PathBuf,
 };
 
-fn main() {
-    scan_folder("/home/ravindra/Projects");
+use clap::Parser;
+
+#[derive(Debug, Parser) ]
+struct Args {
+    /// Path to check for projects
+    #[clap(parse(from_os_str))]
+    path: PathBuf,
 }
 
-fn scan_folder(path: &str) {
+fn main() {
+    let args = Args::parse();
+    scan_folder(&args.path.into_os_string().into_string().unwrap());
+}
+
+fn scan_folder(path: &String) {
     let folder_item_iterator = fs::read_dir(path).unwrap();
     let mut contents: Vec<String> = vec![];
     for item in folder_item_iterator {
@@ -60,7 +70,7 @@ fn scan_folder(path: &str) {
         for item in fs::read_dir(path).unwrap() {
             let path = item.unwrap().path();
             if path.is_dir() {
-                scan_folder(path.to_str().unwrap())
+                scan_folder(&path.into_os_string().into_string().unwrap())
             }
         }
     }
