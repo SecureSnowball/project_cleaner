@@ -143,13 +143,13 @@ fn clean_project(project: &mut Project) {
 
 fn input_handler() -> Result<UserInput, Box<dyn Error>> {
     println!(
-        "Enter project number to clean.\n- 1,2 to clean both 1 and 2 project\n- a to clean all.\n- c to cancel"
+        "Enter project number to clean.\n- 1,2 to clean both 1 and 2 project\n- a to clean all.\n- q to quit"
     );
     let mut answer = String::new();
     io::stdin().read_line(&mut answer).unwrap();
     let answer = answer.trim();
 
-    if answer.to_lowercase() == String::from("c") {
+    if answer.to_lowercase() == String::from("q") {
         quit();
     }
 
