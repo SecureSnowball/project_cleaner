@@ -1,4 +1,5 @@
 use std::{
+    fmt::Display,
     fs::{self, remove_dir_all},
     io,
     path::PathBuf,
@@ -6,6 +7,11 @@ use std::{
 };
 
 use clap::Parser;
+use term_table::{
+    row::Row,
+    table_cell::{Alignment, TableCell},
+    Table, TableStyle,
+};
 
 #[derive(Debug, Parser)]
 struct Args {
@@ -14,10 +20,21 @@ struct Args {
     path: PathBuf,
 }
 
+#[derive(Debug)]
 enum ProjectType {
     JavaScript,
     Rust,
     PHP,
+}
+
+impl Display for ProjectType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            ProjectType::JavaScript => write!(f, "JavaScript"),
+            ProjectType::Rust => write!(f, "Rust"),
+            ProjectType::PHP => write!(f, "PHP"),
+        }
+    }
 }
 
 struct Project {
@@ -37,7 +54,30 @@ fn main() {
     clean_projects(&projects);
 }
 
-fn display_projects(projects: &Vec<Project>) {}
+fn display_projects(projects: &Vec<Project>) {
+    let mut table = Table::new();
+    table.style = TableStyle::extended();
+    table.add_row(Row::new(vec![TableCell::new_with_alignment(
+        "Projects",
+        4,
+        Alignment::Center,
+    )]));
+    table.add_row(Row::new(vec![
+        TableCell::new_with_alignment("Sr", 1, Alignment::Right),
+        TableCell::new_with_alignment("Language", 1, Alignment::Left),
+        TableCell::new_with_alignment("Has Git", 1, Alignment::Left),
+        TableCell::new_with_alignment("Path", 1, Alignment::Left),
+    ]));
+    for (index, project, ) in projects.iter().enumerate() {
+        table.add_row(Row::new(vec![
+            TableCell::new(index),
+            TableCell::new(project.language.to_string()),
+            TableCell::new(if project.has_git { "Yes" } else { "No" }),
+            TableCell::new(project.path.clone()),
+        ]));
+    }
+    println!("{}", table.render());
+}
 fn clean_projects(projects: &Vec<Project>) {}
 
 fn scan_folder(path: &String, projects: &mut Vec<Project>) {
