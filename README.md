@@ -1,4 +1,4 @@
-# Cleaner
+# Build Files Cleaner
 This is a very simple and dangerous project, It takes list of folder and give you list of projects in the following languages which are not clean (contains node_modules, vendor, etc);
 - NodeJS
 - PHP
